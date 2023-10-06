@@ -1,0 +1,131 @@
+from google.colab import drive
+drive.mount('/content/drive')
+import os
+import numpy as np
+import torch
+import torch.nn as nn
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+%matplotlib inline
+def getdata(path):
+  data = torch.tensor([])
+  file_list = os.listdir(path)
+  for file_name in file_list[:350]:
+    image_path = os.path.join(path, file_name)
+    image = mpimg.imread(image_path)
+    imageData = torch.from_numpy(image).long()
+    data = torch.cat((data, imageData.unsqueeze(0)), dim=0)
+  return data
+
+# <START>
+pizza_path = '/content/drive/MyDrive/pizza'
+not_pizza_path = '/content/drive/MyDrive/not_pizza'
+# <END>
+
+not_pizza_data = getdata(not_pizza_path)
+pizza_data = getdata(pizza_path)
+# Change values of index, data
+# <START>
+index = 22 # 0 to 349
+data = not_pizza_data # pizza_data (or) not_pizza_data
+# <END>
+
+plt.imshow(data[index].int())
+train_data = torch.cat((pizza_data[:300], not_pizza_data[:200]), dim = 0)
+test_data = torch.cat((pizza_data[300:350], not_pizza_data[200:250]), dim = 0)
+print(test_data.shape)
+#<START>
+reshaped_train_data = train_data.reshape(train_data.size(0),-1)
+reshaped_test_data = test_data.reshape(test_data.size(0),-1)
+
+final_train_data = reshaped_train_data/255
+final_test_data = reshaped_test_data/255
+
+
+# <END>
+
+print(final_train_data.shape, final_test_data.shape)
+# <START>
+
+train_labels = torch.reshape(torch.cat((torch.ones(300), torch.zeros(200))),(500,1))
+test_labels = torch.reshape(torch.cat((torch.ones(50), torch.zeros(50))),(100,1))
+
+
+
+# <END>
+
+print(train_labels.shape, test_labels.shape)
+
+D_in =12288
+H1 =10
+H2 =12
+D_out =1
+model = torch.nn.Sequential(
+    # Do not hard-code any values, use the variables from the previous cell
+    # <START>
+
+    torch.nn.Linear(D_in, H1),
+    torch.nn.ReLU(),
+    torch.nn.Linear(H1, H2),
+    torch.nn.ReLU(),
+    torch.nn.Linear(H2, D_out),
+    torch.nn.Sigmoid()
+    # <END>
+
+)
+model(final_train_data[0]) #To check if the model works
+loss_fn = nn.BCELoss()
+
+# <START>
+
+learning_rate = 0.005
+iterations = 10000
+
+for t in range(iterations):
+
+    # call the model on the dataset
+    y_pred =model(final_train_data)
+
+    #calculate the loss
+    loss =loss_fn(y_pred,((train_labels).float()))
+
+    if t%1000 == 1:
+        print(loss)
+
+    #calculate the gradients (dont forget to reset the gradients before you begin)
+    model.zero_grad()
+    loss.backward()
+
+    # update the values of the parameters
+    with torch.no_grad():
+      for param in model.parameters():
+        param -= learning_rate * param.grad
+
+# <END>
+
+torch.save(model, 'model_best.pt')
+# Change values of index
+# <START>
+index = 6 #0 to 99
+# <END>
+
+plt.imshow(test_data[index].int())
+print (f'According to the neural network, index = {index} is {"a pizza" if model(final_test_data[index]) > 0.5 else "not a pizza"}' )
+
+def predict(model, data, labels):
+
+    probabilities = model(data)
+
+    # <START>
+
+    # generate the predictions tensor using the probabilities variable, which indicates the prediction made by the model for the given data using 0 and 1
+
+    predictions = (probabilities >= 0.5).float()
+
+    # <END>
+
+    print("Accuracy: "  + str(torch.sum((predictions == labels)).item()/predictions.shape[0]))
+
+predict(model, final_train_data, train_labels)
+predict(model,final_test_data,test_labels)
+print("Done!")
